@@ -1,0 +1,71 @@
+services:
+  # 1. API GATEWAY
+  - type: web
+    name: carrocompras-gateway
+    env: node
+    plan: free
+    rootDir: services
+    buildCommand: npm install
+    startCommand: node gateway/index.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: AUTH_SERVICE_URL
+        fromService:
+          type: web
+          name: carrocompras-auth
+          property: host
+      - key: PRODUCTS_SERVICE_URL
+        fromService:
+          type: web
+          name: carrocompras-products
+          property: host
+      - key: BILLING_SERVICE_URL
+        fromService:
+          type: web
+          name: carrocompras-billing
+          property: host
+
+  # 2. MICROSERVICIO AUTH
+  - type: web
+    name: carrocompras-auth
+    env: node
+    plan: free
+    rootDir: services
+    buildCommand: npm install
+    startCommand: node auth-service/index.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: SUPABASE_URL
+        value: https://qhgbplpzmsvedjjncrxx.supabase.co
+      - key: SUPABASE_KEY
+        value: sb_publishable_bMgdBdxXosxUTnlX8_XZtw_pYbnNsPT
+
+  # 3. MICROSERVICIO PRODUCTS
+  - type: web
+    name: carrocompras-products
+    env: node
+    plan: free
+    rootDir: services
+    buildCommand: npm install
+    startCommand: node products-service/index.js
+    envVars:
+      - key: PORT
+        value: 10000
+      - key: SUPABASE_URL
+        value: https://qhgbplpzmsvedjjncrxx.supabase.co
+      - key: SUPABASE_KEY
+        value: sb_publishable_bMgdBdxXosxUTnlX8_XZtw_pYbnNsPT
+
+  # 4. MICROSERVICIO BILLING
+  - type: web
+    name: carrocompras-billing
+    env: node
+    plan: free
+    rootDir: services
+    buildCommand: npm install
+    startCommand: node billing-service/index.js
+    envVars:
+      - key: PORT
+        value: 10000
