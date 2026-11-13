@@ -5,10 +5,16 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Normalizar URLs eliminando barras finales accidentales
+function normalizeUrl(url, fallback) {
+  if (!url || typeof url !== 'string') return fallback;
+  return url.trim().replace(/\/+$/, '');
+}
+
 const SERVICES = {
-  auth: process.env.AUTH_SERVICE_URL || 'http://localhost:4001',
-  products: process.env.PRODUCTS_SERVICE_URL || 'http://localhost:4002',
-  billing: process.env.BILLING_SERVICE_URL || 'http://localhost:4003'
+  auth: normalizeUrl(process.env.AUTH_SERVICE_URL, 'http://localhost:4001'),
+  products: normalizeUrl(process.env.PRODUCTS_SERVICE_URL, 'http://localhost:4002'),
+  billing: normalizeUrl(process.env.BILLING_SERVICE_URL, 'http://localhost:4003')
 };
 
 // Helper proxy que reenvía solicitudes a cada microservicio
@@ -69,7 +75,7 @@ app.all('/api/billing/*', (req, res) => {
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
   console.log(`=================================================`);
-  console.log(`🚀 API GATEWAY central activo en http://localhost:${PORT}`);
+  console.log(`🚀 API GATEWAY central activo en puerto ${PORT}`);
   console.log(`🔐 Auth Service:     ${SERVICES.auth}`);
   console.log(`📦 Products Service: ${SERVICES.products}`);
   console.log(`🧾 Billing Service:  ${SERVICES.billing}`);
