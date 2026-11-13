@@ -6,9 +6,23 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Inicialización de Supabase con variables de entorno de producción
-const SUPABASE_URL = process.env.SUPABASE_URL || 'https://qhgbplpzmsvedjjncrxx.supabase.co';
-const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_bMgdBdxXosxUTnlX8_XZtw_pYbnNsPT';
+// Sanitización robusta de variables de entorno para evitar comillas, espacios o strings vacíos
+function cleanEnv(val, fallback) {
+  if (!val || typeof val !== 'string') return fallback;
+  const cleaned = val.trim().replace(/^['"]|['"]$/g, '');
+  return cleaned && cleaned.startsWith('http') ? cleaned : fallback;
+}
+
+function cleanKey(val, fallback) {
+  if (!val || typeof val !== 'string') return fallback;
+  const cleaned = val.trim().replace(/^['"]|['"]$/g, '');
+  return cleaned.length > 5 ? cleaned : fallback;
+}
+
+const SUPABASE_URL = cleanEnv(process.env.SUPABASE_URL, 'https://qhgbplpzmsvedjjncrxx.supabase.co');
+const SUPABASE_KEY = cleanKey(process.env.SUPABASE_KEY, 'sb_publishable_bMgdBdxXosxUTnlX8_XZtw_pYbnNsPT');
+
+console.log('[Products Service] Conectando a Supabase URL:', SUPABASE_URL);
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'products-service', database: 'supabase' }));
