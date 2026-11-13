@@ -1,10 +1,15 @@
 const express = require('express');
 const cors = require('cors');
-const { supabase } = require('../supabaseClient');
+const { createClient } = require('@supabase/supabase-js');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Inicialización de Supabase con variables de entorno de producción
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://qhgbplpzmsvedjjncrxx.supabase.co';
+const SUPABASE_KEY = process.env.SUPABASE_KEY || 'sb_publishable_bMgdBdxXosxUTnlX8_XZtw_pYbnNsPT';
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 
 app.get('/health', (req, res) => res.json({ status: 'ok', service: 'auth-service', database: 'supabase' }));
 
@@ -79,7 +84,7 @@ app.post('/login', async (req, res) => {
   }
 });
 
-const PORT = 4001;
+const PORT = process.env.PORT || 4001;
 app.listen(PORT, () => {
-  console.log(`[Auth Service] 🔐 Microservicio activo en http://localhost:${PORT}`);
+  console.log(`[Auth Service] 🔐 Microservicio activo en puerto ${PORT}`);
 });
