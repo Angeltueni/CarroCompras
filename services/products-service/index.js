@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const { supabase, SUPABASE_URL } = require('../supabaseClient');
-const { requireAdmin } = require('../authToken');
+const { supabase, SUPABASE_URL } = require('./supabaseClient');
+const { requireAdmin } = require('./authToken');
 
 const app = express();
 app.use(cors());
