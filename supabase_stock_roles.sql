@@ -36,11 +36,37 @@ ALTER TABLE public.invoices
 ALTER TABLE public.invoices
   ADD COLUMN IF NOT EXISTS cancelled_at TIMESTAMPTZ;
 
--- 4. POLÍTICAS DELETE (el admin borra productos y usuarios) -------------------
+-- 4. POLÍTICAS RLS (se recrean todas: si alguna faltaba, el UPDATE/DELETE se bloqueaba en silencio)
+-- products
+DROP POLICY IF EXISTS "Permitir select products" ON public.products;
+CREATE POLICY "Permitir select products" ON public.products FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Permitir insert products" ON public.products;
+CREATE POLICY "Permitir insert products" ON public.products FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Permitir update products" ON public.products;
+CREATE POLICY "Permitir update products" ON public.products FOR UPDATE USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "Permitir delete products" ON public.products;
 CREATE POLICY "Permitir delete products" ON public.products FOR DELETE USING (true);
+-- users
+DROP POLICY IF EXISTS "Permitir select users" ON public.users;
+CREATE POLICY "Permitir select users" ON public.users FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Permitir insert users" ON public.users;
+CREATE POLICY "Permitir insert users" ON public.users FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Permitir update users" ON public.users;
+CREATE POLICY "Permitir update users" ON public.users FOR UPDATE USING (true) WITH CHECK (true);
 DROP POLICY IF EXISTS "Permitir delete users" ON public.users;
 CREATE POLICY "Permitir delete users" ON public.users FOR DELETE USING (true);
+-- invoices
+DROP POLICY IF EXISTS "Permitir select invoices" ON public.invoices;
+CREATE POLICY "Permitir select invoices" ON public.invoices FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Permitir insert invoices" ON public.invoices;
+CREATE POLICY "Permitir insert invoices" ON public.invoices FOR INSERT WITH CHECK (true);
+DROP POLICY IF EXISTS "Permitir update invoices" ON public.invoices;
+CREATE POLICY "Permitir update invoices" ON public.invoices FOR UPDATE USING (true) WITH CHECK (true);
+-- purchases
+DROP POLICY IF EXISTS "Permitir select purchases" ON public.purchases;
+CREATE POLICY "Permitir select purchases" ON public.purchases FOR SELECT USING (true);
+DROP POLICY IF EXISTS "Permitir insert purchases" ON public.purchases;
+CREATE POLICY "Permitir insert purchases" ON public.purchases FOR INSERT WITH CHECK (true);
 
 -- 5. FUNCIONES DE STOCK (cada llamada es una transacción atómica) -------------
 
@@ -49,6 +75,8 @@ CREATE POLICY "Permitir delete users" ON public.users FOR DELETE USING (true);
 CREATE OR REPLACE FUNCTION public.reserve_stock(p_items jsonb)
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   it jsonb;
@@ -87,6 +115,8 @@ $$;
 CREATE OR REPLACE FUNCTION public.release_stock(p_items jsonb)
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   it jsonb;
@@ -111,6 +141,8 @@ $$;
 CREATE OR REPLACE FUNCTION public.adjust_stock(p_id text, p_delta integer)
 RETURNS integer
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_stock integer;
@@ -135,6 +167,8 @@ $$;
 CREATE OR REPLACE FUNCTION public.cancel_invoice(p_invoice_number text)
 RETURNS void
 LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
 AS $$
 DECLARE
   v_items jsonb;
