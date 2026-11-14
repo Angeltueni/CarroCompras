@@ -58,7 +58,9 @@ export default function AuthScreen() {
           <Text style={styles.userName}>{user.name}</Text>
           <Text style={styles.userEmail}>{user.email}</Text>
           <View style={styles.badge}>
-            <Text style={styles.badgeText}>Sesión activa guardada en SQLite</Text>
+            <Text style={styles.badgeText}>
+              {user.role === 'admin' ? 'Rol: Administrador' : 'Rol: Usuario'} · sesión guardada en SQLite
+            </Text>
           </View>
 
           <TouchableOpacity style={styles.logoutBtn} onPress={logout}>

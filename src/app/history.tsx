@@ -13,10 +13,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/context/AppContext';
 import { printInvoiceDirectly, shareInvoicePDF } from '@/services/invoicePrinter';
 import { LocalInvoice } from '@/database/db';
+import { notify, confirmDialog } from '@/services/notify';
 
 export default function HistoryScreen() {
-  const { invoices, isOnline, triggerSync } = useApp();
+  const { invoices, isOnline, triggerSync, cancelInvoice } = useApp();
   const [syncing, setSyncing] = useState(false);
+  const [cancelling, setCancelling] = useState<string | null>(null);
 
   const handlePrint = async (inv: LocalInvoice) => {
     try {
@@ -53,6 +55,25 @@ export default function HistoryScreen() {
       });
     } catch (e: any) {
       Alert.alert('Error', e.message);
+    }
+  };
+
+  const handleCancel = async (inv: LocalInvoice) => {
+    const ok = await confirmDialog(
+      'Cancelar compra',
+      `¿Cancelar la factura ${inv.invoiceNumber}? Los productos volverán al stock.`,
+      'Sí, cancelar'
+    );
+    if (!ok) return;
+
+    setCancelling(inv.invoiceNumber);
+    try {
+      await cancelInvoice(inv.invoiceNumber);
+      notify('Compra cancelada', 'El stock de los productos fue devuelto.');
+    } catch (e: any) {
+      notify('No se pudo cancelar', e.message);
+    } finally {
+      setCancelling(null);
     }
   };
 
@@ -130,6 +151,7 @@ export default function HistoryScreen() {
           renderItem={({ item }) => {
             const items = JSON.parse(item.itemsJson || '[]');
             const isSynced = Boolean(item.synced);
+            const isCancelled = item.status === 'CANCELADA';
 
             return (
               <View style={styles.invoiceCard}>
@@ -141,8 +163,10 @@ export default function HistoryScreen() {
                     </Text>
                   </View>
                   <View style={styles.badgesCol}>
-                    <View style={styles.badgePaid}>
-                      <Text style={styles.badgeText}>PAGADA</Text>
+                    <View style={isCancelled ? styles.badgeCancelled : styles.badgePaid}>
+                      <Text style={isCancelled ? styles.badgeCancelledText : styles.badgeText}>
+                        {isCancelled ? 'CANCELADA' : 'PAGADA'}
+                      </Text>
                     </View>
                     <View style={[styles.syncBadge, isSynced ? styles.syncBadgeDone : styles.syncBadgePending]}>
                       <Ionicons
@@ -188,6 +212,23 @@ export default function HistoryScreen() {
                     <Text style={styles.actionBtnText}>Compartir PDF</Text>
                   </TouchableOpacity>
                 </View>
+
+                {!isCancelled && (
+                  <TouchableOpacity
+                    style={[styles.cancelBtn, cancelling === item.invoiceNumber && styles.cancelBtnBusy]}
+                    disabled={cancelling !== null}
+                    onPress={() => handleCancel(item)}
+                  >
+                    {cancelling === item.invoiceNumber ? (
+                      <ActivityIndicator size="small" color="#b91c1c" />
+                    ) : (
+                      <>
+                        <Ionicons name="close-circle-outline" size={16} color="#b91c1c" />
+                        <Text style={styles.cancelBtnText}>Cancelar compra y devolver stock</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                )}
               </View>
             );
           }}
@@ -314,6 +355,37 @@ const styles = StyleSheet.create({
     color: '#166534',
     fontSize: 10,
     fontWeight: 'bold',
+  },
+  badgeCancelled: {
+    backgroundColor: '#fee2e2',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  badgeCancelledText: {
+    color: '#991b1b',
+    fontSize: 10,
+    fontWeight: 'bold',
+  },
+  cancelBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 10,
+    paddingVertical: 10,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#fca5a5',
+    backgroundColor: '#fef2f2',
+  },
+  cancelBtnBusy: {
+    opacity: 0.6,
+  },
+  cancelBtnText: {
+    color: '#b91c1c',
+    fontSize: 13,
+    fontWeight: '600',
   },
   syncBadge: {
     flexDirection: 'row',

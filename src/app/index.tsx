@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   StyleSheet,
   View,
@@ -12,46 +12,39 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useApp } from '@/context/AppContext';
-import { api } from '@/services/api';
+import { Product } from '@/services/api';
+import { notify } from '@/services/notify';
 import { useRouter } from 'expo-router';
 
-interface Product {
-  id: string;
-  name: string;
-  price: number;
-  category: string;
-  stock: number;
-  image: string;
-}
+const LOW_STOCK = 5;
 
 export default function CatalogScreen() {
   const router = useRouter();
-  const { cart, addToCart, user } = useApp();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  // products llega en TIEMPO REAL desde el contexto (Supabase Realtime)
+  const { cart, addToCart, user, products, productsLoading, realtimeConnected, reloadProducts } = useApp();
   const [refreshing, setRefreshing] = useState(false);
 
-  const loadProducts = async () => {
-    try {
-      setLoading(true);
-      const data = await api.getProducts();
-      setProducts(data);
-    } catch (e) {
-      console.error(e);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await reloadProducts();
+    setRefreshing(false);
   };
 
-  useEffect(() => {
-    loadProducts();
-  }, []);
+  const handleAdd = async (item: Product) => {
+    try {
+      await addToCart(item);
+    } catch (e: any) {
+      notify('Stock insuficiente', e.message);
+    }
+  };
 
   const totalItemsCount = cart.reduce((acc, it) => acc + it.quantity, 0);
 
   const renderProduct = ({ item }: { item: Product }) => {
     const inCart = cart.find((c) => c.productId === item.id);
+    const soldOut = item.stock <= 0;
+    const lowStock = !soldOut && item.stock <= LOW_STOCK;
+    const atLimit = !!inCart && inCart.quantity >= item.stock;
 
     return (
       <View style={styles.card}>
@@ -60,19 +53,32 @@ export default function CatalogScreen() {
           <Text style={styles.category}>{item.category}</Text>
           <Text style={styles.title} numberOfLines={2}>{item.name}</Text>
           <Text style={styles.price}>${item.price.toFixed(2)}</Text>
-          <Text style={styles.stock}>Stock: {item.stock} disp.</Text>
+          <Text style={[styles.stock, soldOut && styles.stockOut, lowStock && styles.stockLow]}>
+            {soldOut ? 'Agotado' : lowStock ? `¡Quedan solo ${item.stock}!` : `Stock: ${item.stock} disp.`}
+          </Text>
 
           <TouchableOpacity
-            style={[styles.addBtn, inCart ? styles.addBtnActive : null]}
-            onPress={() => addToCart(item)}
+            style={[
+              styles.addBtn,
+              inCart ? styles.addBtnActive : null,
+              (soldOut || atLimit) && styles.addBtnDisabled
+            ]}
+            disabled={soldOut || atLimit}
+            onPress={() => handleAdd(item)}
           >
             <Ionicons
-              name={inCart ? 'checkmark-circle' : 'cart-outline'}
+              name={soldOut ? 'close-circle-outline' : inCart ? 'checkmark-circle' : 'cart-outline'}
               size={18}
               color="#fff"
             />
             <Text style={styles.addBtnText}>
-              {inCart ? `En carrito (${inCart.quantity})` : 'Agregar'}
+              {soldOut
+                ? 'Agotado'
+                : atLimit
+                  ? `Máximo en carrito (${inCart?.quantity})`
+                  : inCart
+                    ? `En carrito (${inCart.quantity})`
+                    : 'Agregar'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -89,6 +95,12 @@ export default function CatalogScreen() {
             {user ? `Hola, ${user.name}` : 'Sesión: Modo Invitado'}
           </Text>
           <Text style={styles.headerTitle}>Catálogo de Productos</Text>
+          <View style={styles.liveRow}>
+            <View style={[styles.liveDot, realtimeConnected ? styles.liveDotOn : styles.liveDotOff]} />
+            <Text style={styles.liveText}>
+              {realtimeConnected ? 'Stock en vivo' : 'Stock: actualizando cada 15 s'}
+            </Text>
+          </View>
         </View>
 
         <TouchableOpacity
@@ -104,7 +116,7 @@ export default function CatalogScreen() {
         </TouchableOpacity>
       </View>
 
-      {loading ? (
+      {productsLoading ? (
         <View style={styles.centered}>
           <ActivityIndicator size="large" color="#2563eb" />
           <Text style={styles.loadingText}>Conectando con Microservicio de Productos...</Text>
@@ -117,7 +129,12 @@ export default function CatalogScreen() {
           numColumns={2}
           contentContainerStyle={styles.list}
           refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); loadProducts(); }} />
+            <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+          }
+          ListEmptyComponent={
+            <View style={styles.centered}>
+              <Text style={styles.loadingText}>No hay productos disponibles</Text>
+            </View>
           }
         />
       )}
@@ -233,6 +250,38 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: '#94a3b8',
     marginBottom: 10,
+  },
+  stockOut: {
+    color: '#dc2626',
+    fontWeight: 'bold',
+  },
+  stockLow: {
+    color: '#d97706',
+    fontWeight: 'bold',
+  },
+  addBtnDisabled: {
+    backgroundColor: '#94a3b8',
+  },
+  liveRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  liveDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+  },
+  liveDotOn: {
+    backgroundColor: '#10b981',
+  },
+  liveDotOff: {
+    backgroundColor: '#f59e0b',
+  },
+  liveText: {
+    fontSize: 10,
+    color: '#64748b',
   },
   addBtn: {
     flexDirection: 'row',

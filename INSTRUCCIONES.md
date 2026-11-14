@@ -54,6 +54,27 @@ npx expo start
 - Presiona `a` para abrir en emulador Android o escanea el QR con la app **Expo Go** en tu celular.
 
 ### Credenciales de prueba (Microservicio Auth):
-- **Email:** `demo@test.com`
-- **Contraseña:** `123`
-*(O puedes registrar una nueva cuenta desde la pestaña "Cuenta").*
+| Rol | Email | Contraseña |
+|---|---|---|
+| **Administrador** | `admin@test.com` | `admin123` |
+| Usuario | `demo@test.com` | `123` |
+
+*(Las cuentas se crean al ejecutar `supabase_stock_roles.sql`. El registro público siempre crea usuarios con rol "usuario"; solo un admin puede crear otros admins. Cambia la contraseña del admin.)*
+
+## Stock, roles y tiempo real
+
+**Paso obligatorio (una sola vez):** ejecuta [supabase_stock_roles.sql](supabase_stock_roles.sql) en el SQL Editor de Supabase. Crea el rol `admin`/`user`, las funciones atómicas de stock, el estado de factura y activa Realtime sobre `products`.
+
+- **Stock en vivo:** el catálogo se actualiza al instante en todos los dispositivos (Supabase Realtime). Si el canal en vivo no conecta, se refresca cada 15 s.
+- **Comprar baja el stock:** al generar la factura se descuenta de forma atómica. Si algún producto no alcanza, no se descuenta nada y no se emite la factura. Requiere conexión.
+- **Cancelar devuelve el stock:** en *Facturas* → "Cancelar compra y devolver stock". La factura pasa a CANCELADA y el stock se devuelve una sola vez.
+- **Admin** (pestaña *Admin*, solo visible con rol admin):
+  - *Productos y stock:* crear, editar, eliminar y aumentar stock.
+  - *Usuarios:* crear, editar (nombre, email, contraseña, rol) y eliminar. No se puede eliminar ni degradar al único admin, ni eliminarse a uno mismo.
+- Las operaciones de admin las valida el servidor con un token firmado (`AUTH_SECRET`) y el rol leído de la base de datos.
+
+### Variables de entorno de los microservicios
+- `AUTH_SECRET`: mismo valor en `auth` y `products`. En Render lo genera `render.yaml` (grupo `carrocompras-shared`). En local usa un valor de desarrollo por defecto.
+- `SUPABASE_SERVICE_KEY` (opcional): si se define, los servicios la usan en lugar de la clave pública.
+
+Tras desplegar, redespliega **gateway, auth, products y billing** en Render.

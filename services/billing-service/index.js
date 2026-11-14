@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const { supabase } = require('../supabaseClient');
 
 const app = express();
 app.use(cors());
@@ -47,15 +48,41 @@ app.post('/calculate', (req, res) => {
   });
 });
 
-// Endpoint para registrar / emitir factura final
-app.post('/invoices', (req, res) => {
+// Errores de negocio de las funciones SQL de stock (se responden 409 en vez de 500)
+const isStockBusinessError = (msg = '') => /stock insuficiente|ya no existe|cantidad inv[aá]lida/i.test(msg);
+
+// Emite la factura y DESCUENTA el stock de forma atómica (todo o nada)
+app.post('/invoices', async (req, res) => {
   const { customer, items, taxRate = IVA_RATE, paymentMethod = 'Efectivo' } = req.body;
-  if (!items || items.length === 0) {
+  if (!Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: 'No hay ítems en la factura' });
   }
 
+  const stockItems = items.map((it) => ({
+    id: it.id || it.productId,
+    quantity: Number(it.quantity) || 1
+  }));
+  if (stockItems.some((s) => !s.id)) {
+    return res.status(400).json({ error: 'Todos los ítems deben incluir el id del producto' });
+  }
+
+  try {
+    const { error: stockError } = await supabase.rpc('reserve_stock', { p_items: stockItems });
+    if (stockError) {
+      if (isStockBusinessError(stockError.message)) {
+        return res.status(409).json({ error: stockError.message });
+      }
+      return res.status(500).json({
+        error: 'No se pudo reservar el stock (¿ejecutaste supabase_stock_roles.sql?)',
+        details: stockError.message
+      });
+    }
+  } catch (err) {
+    return res.status(500).json({ error: 'Fallo reservando stock', details: err.message });
+  }
+
   let subtotal = 0;
-  items.forEach(it => {
+  items.forEach((it) => {
     subtotal += (Number(it.quantity) || 1) * (Number(it.price) || 0);
   });
   subtotal = +subtotal.toFixed(2);
@@ -82,7 +109,23 @@ app.post('/invoices', (req, res) => {
   });
 });
 
-const PORT = 4003;
+// Cancela una factura y DEVUELVE su stock (idempotente: solo una vez por factura)
+app.post('/invoices/:invoiceNumber/cancel', async (req, res) => {
+  try {
+    const { error } = await supabase.rpc('cancel_invoice', { p_invoice_number: req.params.invoiceNumber });
+    if (error) {
+      if (/no encontrada|ya cancelada/i.test(error.message)) {
+        return res.status(409).json({ error: error.message });
+      }
+      return res.status(500).json({ error: 'No se pudo cancelar la factura', details: error.message });
+    }
+    res.json({ success: true, message: 'Factura cancelada y stock devuelto' });
+  } catch (err) {
+    res.status(500).json({ error: 'Fallo cancelando factura', details: err.message });
+  }
+});
+
+const PORT = process.env.PORT || 4003;
 app.listen(PORT, () => {
   console.log(`[Billing Service] Corriendo en http://localhost:${PORT}`);
 });

@@ -59,30 +59,45 @@ async function initDatabase(db: SQLite.SQLiteDatabase) {
     );
   `);
 
-  // Migración segura: agregar la columna synced si la tabla invoices fue creada previamente sin ella
-  try {
-    await db.execAsync(`ALTER TABLE invoices ADD COLUMN synced INTEGER DEFAULT 0;`);
-  } catch {
-    // Si la columna ya existe, SQLite lanzará un error que ignoramos de manera segura
+  // Migraciones seguras: si la columna ya existe, SQLite lanza un error que ignoramos
+  const migrations = [
+    `ALTER TABLE invoices ADD COLUMN synced INTEGER DEFAULT 0;`,
+    `ALTER TABLE invoices ADD COLUMN status TEXT DEFAULT 'PAGADA';`,
+    `ALTER TABLE session ADD COLUMN role TEXT DEFAULT 'user';`
+  ];
+  for (const sql of migrations) {
+    try {
+      await db.execAsync(sql);
+    } catch {
+      // columna ya existente
+    }
   }
 }
 
 // ==================== AUTH / SESSION ====================
-export async function saveLocalSession(user: { id: string; name: string; email: string }, token: string) {
+export type UserRole = 'admin' | 'user';
+
+export interface SessionUser {
+  id: string;
+  name: string;
+  email: string;
+  role: UserRole;
+}
+
+export async function saveLocalSession(user: SessionUser, token: string) {
   const db = await getDatabase();
   await db.runAsync('DELETE FROM session');
   await db.runAsync(
-    'INSERT INTO session (id, name, email, token, createdAt) VALUES (?, ?, ?, ?, ?)',
-    [user.id, user.name, user.email, token, new Date().toISOString()]
+    'INSERT INTO session (id, name, email, token, createdAt, role) VALUES (?, ?, ?, ?, ?, ?)',
+    [user.id, user.name, user.email, token, new Date().toISOString(), user.role || 'user']
   );
 }
 
-export async function getLocalSession(): Promise<{ id: string; name: string; email: string; token: string } | null> {
+export async function getLocalSession(): Promise<(SessionUser & { token: string }) | null> {
   const db = await getDatabase();
-  const row = await db.getFirstAsync<{ id: string; name: string; email: string; token: string }>(
-    'SELECT * FROM session LIMIT 1'
-  );
-  return row || null;
+  const row = await db.getFirstAsync<SessionUser & { token: string }>('SELECT * FROM session LIMIT 1');
+  if (!row) return null;
+  return { ...row, role: row.role === 'admin' ? 'admin' : 'user' };
 }
 
 export async function clearLocalSession() {
@@ -153,6 +168,7 @@ export interface LocalInvoice {
   itemsJson: string;
   paymentMethod: string;
   synced?: number;
+  status?: string; // 'PAGADA' | 'CANCELADA'
 }
 
 export async function saveLocalInvoice(invoice: LocalInvoice) {
@@ -230,6 +246,11 @@ export async function markInvoiceSynced(invoiceNumber: string) {
   } catch {
     // Si la columna no estuviera presente aún
   }
+}
+
+export async function markInvoiceCancelled(invoiceNumber: string) {
+  const db = await getDatabase();
+  await db.runAsync("UPDATE invoices SET status = 'CANCELADA' WHERE invoiceNumber = ?", [invoiceNumber]);
 }
 
 export async function getLocalInvoices(): Promise<LocalInvoice[]> {

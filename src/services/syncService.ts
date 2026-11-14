@@ -155,3 +155,35 @@ export async function flushSyncQueue(): Promise<{ processed: number; errors: num
 
   return { processed, errors };
 }
+
+/**
+ * Garantiza que la factura exista en Supabase antes de cancelarla (por si aún estaba en la cola offline).
+ * `ignoreDuplicates` evita pisar el estado de una factura que ya existe en la nube.
+ * Lanza error si no hay conexión: cancelar devuelve stock en el servidor, así que necesita red.
+ */
+export async function ensureInvoiceInCloud(invoice: LocalInvoice, userId?: string): Promise<void> {
+  if (!(await checkIsOnline())) {
+    throw new Error('Necesitas conexión a internet para cancelar y devolver el stock');
+  }
+
+  const { error } = await supabase.from('invoices').upsert(
+    [
+      {
+        invoice_number: invoice.invoiceNumber,
+        user_id: userId || null,
+        date: invoice.date,
+        customer_name: invoice.customerName,
+        customer_email: invoice.customerEmail,
+        subtotal: invoice.subtotal,
+        tax_rate: invoice.taxRate,
+        iva: invoice.iva,
+        total: invoice.total,
+        items: JSON.parse(invoice.itemsJson),
+        payment_method: invoice.paymentMethod
+      }
+    ],
+    { onConflict: 'invoice_number', ignoreDuplicates: true }
+  );
+
+  if (error) throw new Error(`No se pudo preparar la factura en la nube: ${error.message}`);
+}

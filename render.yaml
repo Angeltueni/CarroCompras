@@ -1,3 +1,10 @@
+envVarGroups:
+  # Secreto compartido para firmar/verificar tokens entre Auth y Products
+  - name: carrocompras-shared
+    envVars:
+      - key: AUTH_SECRET
+        generateValue: true
+
 services:
   # 1. API GATEWAY
   - type: web
@@ -35,6 +42,7 @@ services:
     buildCommand: npm install
     startCommand: node auth-service/index.js
     envVars:
+      - fromGroup: carrocompras-shared
       - key: PORT
         value: 10000
       - key: SUPABASE_URL
@@ -51,6 +59,7 @@ services:
     buildCommand: npm install
     startCommand: node products-service/index.js
     envVars:
+      - fromGroup: carrocompras-shared
       - key: PORT
         value: 10000
       - key: SUPABASE_URL
@@ -69,3 +78,7 @@ services:
     envVars:
       - key: PORT
         value: 10000
+      - key: SUPABASE_URL
+        value: https://qhgbplpzmsvedjjncrxx.supabase.co
+      - key: SUPABASE_KEY
+        value: sb_publishable_bMgdBdxXosxUTnlX8_XZtw_pYbnNsPT

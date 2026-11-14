@@ -27,7 +27,7 @@ export default function CartScreen() {
     decrementQuantity,
     removeFromCart,
     checkout,
-    user
+    products
   } = useApp();
 
   const [loading, setLoading] = useState(false);
@@ -38,6 +38,14 @@ export default function CartScreen() {
       window.alert(`${title}\n${message}`);
     } else {
       Alert.alert(title, message);
+    }
+  };
+
+  const handleAdd = async (item: { productId: string; name: string; price: number }) => {
+    try {
+      await addToCart({ id: item.productId, name: item.name, price: item.price });
+    } catch (e: any) {
+      showAlert('Stock insuficiente', e.message);
     }
   };
 
@@ -143,7 +151,11 @@ export default function CartScreen() {
           data={cart}
           keyExtractor={(item) => item.productId}
           contentContainerStyle={styles.list}
-          renderItem={({ item }) => (
+          renderItem={({ item }) => {
+            const stock = products.find((p) => p.id === item.productId)?.stock;
+            const overStock = stock !== undefined && item.quantity > stock;
+            const atLimit = stock !== undefined && item.quantity >= stock;
+            return (
             <View style={styles.cartCard}>
               <View style={styles.itemInfo}>
                 <Text style={styles.itemName}>{item.name}</Text>
@@ -153,6 +165,11 @@ export default function CartScreen() {
                 <Text style={styles.itemTotal}>
                   Subtotal: ${(item.price * item.quantity).toFixed(2)}
                 </Text>
+                {overStock && (
+                  <Text style={styles.stockWarning}>
+                    {stock === 0 ? 'Agotado' : `Solo quedan ${stock}`}: ajusta la cantidad para poder facturar
+                  </Text>
+                )}
               </View>
 
               <View style={styles.qtyControls}>
@@ -166,16 +183,11 @@ export default function CartScreen() {
                 <Text style={styles.qtyText}>{item.quantity}</Text>
 
                 <TouchableOpacity
-                  style={styles.qtyBtn}
-                  onPress={() =>
-                    addToCart({
-                      id: item.productId,
-                      name: item.name,
-                      price: item.price
-                    })
-                  }
+                  style={[styles.qtyBtn, atLimit && styles.qtyBtnDisabled]}
+                  disabled={atLimit}
+                  onPress={() => handleAdd(item)}
                 >
-                  <Ionicons name="add" size={16} color="#0f172a" />
+                  <Ionicons name="add" size={16} color={atLimit ? '#cbd5e1' : '#0f172a'} />
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -186,7 +198,8 @@ export default function CartScreen() {
                 </TouchableOpacity>
               </View>
             </View>
-          )}
+            );
+          }}
         />
       )}
 
@@ -403,6 +416,15 @@ const styles = StyleSheet.create({
     backgroundColor: '#f1f5f9',
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  qtyBtnDisabled: {
+    backgroundColor: '#f8fafc',
+  },
+  stockWarning: {
+    fontSize: 11,
+    color: '#dc2626',
+    fontWeight: '600',
+    marginTop: 3,
   },
   qtyText: {
     fontSize: 15,

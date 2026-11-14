@@ -60,6 +60,12 @@ app.all('/api/auth/*', (req, res) => {
   proxyRequest(`${SERVICES.auth}${path}`, req, res);
 });
 
+// Gestión de usuarios (admin) → microservicio Auth
+app.all('/api/users*', (req, res) => {
+  const path = req.url.replace('/api', '');
+  proxyRequest(`${SERVICES.auth}${path}`, req, res);
+});
+
 // Enrutamiento de microservicio Products
 app.all('/api/products*', (req, res) => {
   const path = req.url.replace('/api', '');

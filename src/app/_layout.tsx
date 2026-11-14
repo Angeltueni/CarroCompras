@@ -10,7 +10,7 @@ import AuthScreen from './auth';
 SplashScreen.preventAutoHideAsync();
 
 function MainNavigation() {
-  const { user, authLoading, cart } = useApp();
+  const { user, authLoading, cart, isAdmin } = useApp();
   const cartCount = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   // Si está cargando la sesión desde SQLite
@@ -75,6 +75,17 @@ function MainNavigation() {
           title: 'Facturas',
           tabBarIcon: ({ color, size }) => (
             <Ionicons name="receipt-outline" size={size} color={String(color)} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="admin"
+        options={{
+          title: 'Admin',
+          // href: null oculta la pestaña a los usuarios normales
+          href: isAdmin ? undefined : null,
+          tabBarIcon: ({ color, size }) => (
+            <Ionicons name="shield-checkmark-outline" size={size} color={String(color)} />
           ),
         }}
       />
